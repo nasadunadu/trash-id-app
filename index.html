@@ -2,86 +2,140 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 垃圾分类助手</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>绿盾 AI 垃圾分类</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .scanning-line {
-            height: 2px;
-            background: linear-gradient(to right, transparent, #22c55e, transparent);
-            animation: scan 2s linear infinite;
+        /* 扫描线动画 */
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to bottom, transparent, #22c55e, transparent);
+            box-shadow: 0 0 15px #22c55e;
+            animation: scan 2.5s ease-in-out infinite;
+            display: none;
         }
         @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
+            0% { top: 0%; }
+            50% { top: 90%; }
+            100% { top: 0%; }
+        }
+        #video-container {
+            mask-image: -webkit-radial-gradient(white, black); /* 修复 iOS 圆角溢出 */
         }
     </style>
 </head>
-<body class="bg-gray-50 flex flex-col items-center p-4">
-    <header class="mb-6 text-center">
-        <h1 class="text-2xl font-bold text-green-600">绿盾 AI 识别</h1>
-        <p class="text-gray-500 text-sm">拍摄垃圾，AI 告诉你分类</p>
+<body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
+
+    <header class="w-full max-w-md my-6 text-center">
+        <h1 class="text-3xl font-black text-green-600 tracking-tight">绿盾 AI</h1>
+        <p class="text-slate-400 text-sm mt-1">让垃圾分类变得简单</p>
     </header>
 
-    <div class="relative w-full max-w-md aspect-[3/4] bg-black rounded-2xl overflow-hidden shadow-xl">
-        <video id="video" class="w-full h-full object-cover" autoplay playsinline></video>
-        <div id="scanner" class="hidden absolute inset-0 scanning-line"></div>
+    <div id="video-container" class="relative w-full max-w-md aspect-[3/4] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+        <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-2 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <p class="text-xs uppercase tracking-widest">Camera Off</p>
+        </div>
+
+        <video id="video" class="w-full h-full object-cover hidden" autoplay playsinline muted></video>
+        <div id="scanLine" class="scan-line"></div>
         <canvas id="canvas" class="hidden"></canvas>
     </div>
 
-    <div class="mt-8 flex gap-4">
-        <button id="startBtn" class="bg-blue-500 text-white px-6 py-3 rounded-full font-bold">开启相机</button>
-        <button id="captureBtn" class="bg-green-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hidden">拍照识别</button>
+    <div class="mt-8 w-full max-w-md flex flex-col items-center">
+        <button id="startBtn" class="w-full bg-slate-900 text-white text-lg font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+            开启扫描
+        </button>
+        
+        <button id="captureBtn" class="hidden w-full bg-green-500 text-white text-lg font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+            拍照识别
+        </button>
     </div>
 
-    <div id="resultCard" class="mt-6 w-full max-w-md bg-white p-6 rounded-2xl shadow-md hidden">
-        <div id="resColor" class="w-12 h-12 rounded-full mb-4"></div>
-        <h2 id="resName" class="text-xl font-bold mb-1">物体名称</h2>
-        <p id="resType" class="text-green-600 font-bold mb-3">分类加载中...</p>
-        <p id="resAdvice" class="text-gray-600 text-sm leading-relaxed"></p>
+    <div id="resultCard" class="hidden mt-6 w-full max-w-md bg-white p-6 rounded-3xl shadow-xl border border-slate-100 animate-bounce-in">
+        <div class="flex items-center gap-4 mb-4">
+            <div id="resColor" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl">♻️</div>
+            <div>
+                <h2 id="resName" class="text-xl font-black text-slate-800 tracking-tight text-ellipsis overflow-hidden">物体名称</h2>
+                <span id="resType" class="text-xs font-bold px-2 py-1 rounded-md bg-green-100 text-green-700 uppercase">分类加载中</span>
+            </div>
+        </div>
+        <div class="p-4 bg-slate-50 rounded-2xl">
+            <p class="text-xs text-slate-400 font-bold mb-1 uppercase tracking-tighter">处理建议</p>
+            <p id="resAdvice" class="text-slate-600 text-sm leading-relaxed font-medium">识别中...</p>
+        </div>
     </div>
+
+    <p class="mt-8 text-[10px] text-slate-300">Powered by Gemini AI • 绿盾助手</p>
 
     <script type="module">
-        // 注意：你需要在此处填入你的 Gemini API Key
+        // --- 配置区 ---
         const API_KEY =AIzaSyBLAzg6L-oqVVAtM0wJnsR3pUPlkLZCoxE; 
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
         const video = document.getElementById('video');
-        const captureBtn = document.getElementById('captureBtn');
         const startBtn = document.getElementById('startBtn');
-        const scanner = document.getElementById('scanner');
+        const captureBtn = document.getElementById('captureBtn');
+        const placeholder = document.getElementById('placeholder');
+        const scanLine = document.getElementById('scanLine');
+        const resultCard = document.getElementById('resultCard');
 
-        // 1. 开启摄像头 (指定后置)
+        // 1. 开启相机逻辑 (针对 iPhone 深度优化)
         startBtn.onclick = async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } 
-            });
-            video.srcObject = stream;
-            startBtn.classList.add('hidden');
-            captureBtn.classList.remove('hidden');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: { ideal: "environment" },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                placeholder.classList.add('hidden');
+                video.classList.remove('hidden');
+                
+                // iOS 必须在元数据加载后手动调用 play
+                video.onloadedmetadata = () => {
+                    video.play();
+                };
+
+                startBtn.classList.add('hidden');
+                captureBtn.classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                alert("相机开启失败，请确认：\n1. 已使用 HTTPS 访问\n2. 手机设置中 Chrome 的相机权限已打开\n3. 错误代码：" + err.name);
+            }
         };
 
-        // 2. 拍照并调用接口
+        // 2. 识别逻辑
         captureBtn.onclick = async () => {
             const canvas = document.getElementById('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             
-            const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
             
-            // UI 状态
-            scanner.classList.remove('hidden');
+            // UI 状态切换
+            scanLine.style.display = 'block';
             captureBtn.disabled = true;
-            captureBtn.innerText = "识别中...";
+            captureBtn.innerText = "AI 正在分析...";
+            resultCard.classList.add('hidden');
 
             try {
                 const response = await fetch(API_URL, {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{
                             parts: [
-                                { text: "识别图中的物体并分类。返回格式必须是 JSON：{\"name\":\"物体名\",\"type\":\"分类\",\"advice\":\"处理建议\",\"color\":\"十六进制颜色\"}" },
+                                { text: "你是一个垃圾分类专家。请识别图中物体，判断其分类（可回收物、有害垃圾、厨余垃圾、其他垃圾）。严格返回 JSON：{\"name\":\"名称\",\"type\":\"分类\",\"advice\":\"建议\",\"emoji\":\"图标\",\"color\":\"背景色码\"}" },
                                 { inline_data: { mime_type: "image/jpeg", data: base64Image } }
                             ]
                         }]
@@ -89,18 +143,25 @@
                 });
 
                 const data = await response.json();
-                const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                const rawText = data.candidates[0].content.parts[0].text;
+                // 清理大模型可能返回的 Markdown 代码块标签
+                const cleanJson = rawText.replace(/```json|```/gi, '').trim();
+                const result = JSON.parse(cleanJson);
                 
-                // 显示结果
-                document.getElementById('resultCard').classList.remove('hidden');
+                // 渲染结果
                 document.getElementById('resName').innerText = result.name;
                 document.getElementById('resType').innerText = result.type;
                 document.getElementById('resAdvice').innerText = result.advice;
-                document.getElementById('resColor').style.backgroundColor = result.color;
+                document.getElementById('resColor').innerText = result.emoji || "♻️";
+                document.getElementById('resColor').style.backgroundColor = result.color || "#f1f5f9";
+                
+                resultCard.classList.remove('hidden');
+                resultCard.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {
-                alert("识别失败，请检查 API Key 或网络");
+                console.error(e);
+                alert("AI 暂时断线，请检查 API Key 或网络环境。");
             } finally {
-                scanner.classList.add('hidden');
+                scanLine.style.display = 'none';
                 captureBtn.disabled = false;
                 captureBtn.innerText = "拍照识别";
             }
