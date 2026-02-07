@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 垃圾分类助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .scanning-line {
+            height: 2px;
+            background: linear-gradient(to right, transparent, #22c55e, transparent);
+            animation: scan 2s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col items-center p-4">
+    <header class="mb-6 text-center">
+        <h1 class="text-2xl font-bold text-green-600">绿盾 AI 识别</h1>
+        <p class="text-gray-500 text-sm">拍摄垃圾，AI 告诉你分类</p>
+    </header>
+
+    <div class="relative w-full max-w-md aspect-[3/4] bg-black rounded-2xl overflow-hidden shadow-xl">
+        <video id="video" class="w-full h-full object-cover" autoplay playsinline></video>
+        <div id="scanner" class="hidden absolute inset-0 scanning-line"></div>
+        <canvas id="canvas" class="hidden"></canvas>
+    </div>
+
+    <div class="mt-8 flex gap-4">
+        <button id="startBtn" class="bg-blue-500 text-white px-6 py-3 rounded-full font-bold">开启相机</button>
+        <button id="captureBtn" class="bg-green-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hidden">拍照识别</button>
+    </div>
+
+    <div id="resultCard" class="mt-6 w-full max-w-md bg-white p-6 rounded-2xl shadow-md hidden">
+        <div id="resColor" class="w-12 h-12 rounded-full mb-4"></div>
+        <h2 id="resName" class="text-xl font-bold mb-1">物体名称</h2>
+        <p id="resType" class="text-green-600 font-bold mb-3">分类加载中...</p>
+        <p id="resAdvice" class="text-gray-600 text-sm leading-relaxed"></p>
+    </div>
+
+    <script type="module">
+        // 注意：你需要在此处填入你的 Gemini API Key
+        const API_KEY =AIzaSyBLAzg6L-oqVVAtM0wJnsR3pUPlkLZCoxE; 
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+        const video = document.getElementById('video');
+        const captureBtn = document.getElementById('captureBtn');
+        const startBtn = document.getElementById('startBtn');
+        const scanner = document.getElementById('scanner');
+
+        // 1. 开启摄像头 (指定后置)
+        startBtn.onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+            });
+            video.srcObject = stream;
+            startBtn.classList.add('hidden');
+            captureBtn.classList.remove('hidden');
+        };
+
+        // 2. 拍照并调用接口
+        captureBtn.onclick = async () => {
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+            
+            // UI 状态
+            scanner.classList.remove('hidden');
+            captureBtn.disabled = true;
+            captureBtn.innerText = "识别中...";
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "识别图中的物体并分类。返回格式必须是 JSON：{\"name\":\"物体名\",\"type\":\"分类\",\"advice\":\"处理建议\",\"color\":\"十六进制颜色\"}" },
+                                { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                
+                // 显示结果
+                document.getElementById('resultCard').classList.remove('hidden');
+                document.getElementById('resName').innerText = result.name;
+                document.getElementById('resType').innerText = result.type;
+                document.getElementById('resAdvice').innerText = result.advice;
+                document.getElementById('resColor').style.backgroundColor = result.color;
+            } catch (e) {
+                alert("识别失败，请检查 API Key 或网络");
+            } finally {
+                scanner.classList.add('hidden');
+                captureBtn.disabled = false;
+                captureBtn.innerText = "拍照识别";
+            }
+        };
+    </script>
+</body>
+</html>
