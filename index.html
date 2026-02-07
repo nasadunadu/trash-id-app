@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>绿盾 AI 垃圾分类</title>
+    <title>绿盾 AI - 豆包版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         #v-container { mask-image: -webkit-radial-gradient(white, black); }
-        .scanning { position: absolute; width: 100%; height: 4px; background: #22c55e; box-shadow: 0 0 15px #22c55e; animation: scan 2s infinite; display: none; }
+        .scanning { position: absolute; width: 100%; height: 4px; background: #3b82f6; box-shadow: 0 0 15px #3b82f6; animation: scan 2s infinite; display: none; }
         @keyframes scan { 0% { top: 0%; } 50% { top: 90%; } 100% { top: 0%; } }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
 
     <header class="w-full max-w-md my-6 text-center">
-        <h1 class="text-3xl font-black text-green-600 tracking-tight">绿盾 AI</h1>
-        <div id="debugStatus" class="text-[10px] text-slate-400 mt-2 font-mono">相机就绪</div>
+        <h1 class="text-3xl font-black text-blue-600 tracking-tight">绿盾 AI</h1>
+        <p class="text-slate-400 text-xs mt-1">基于豆包大模型提供动力</p>
     </header>
 
     <div id="v-container" class="relative w-full max-w-md aspect-[3/4] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
@@ -25,125 +25,111 @@
     </div>
 
     <div class="mt-8 w-full max-w-md">
-        <button id="mainBtn" class="w-full bg-green-500 text-white text-lg font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+        <button id="mainBtn" class="w-full bg-blue-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
             开启相机
         </button>
     </div>
 
     <div id="resultCard" class="hidden mt-6 w-full max-w-md bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
         <div class="flex items-center gap-4 mb-4">
-            <div id="resEmoji" class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl bg-slate-100">♻️</div>
+            <div id="resEmoji" class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl bg-blue-50">♻️</div>
             <div>
-                <h2 id="resName" class="text-xl font-black text-slate-800 tracking-tight">识别结果</h2>
-                <span id="resType" class="text-xs font-bold px-2 py-1 rounded-md bg-green-100 text-green-700">分类加载中</span>
+                <h2 id="resName" class="text-xl font-black text-slate-800">识别结果</h2>
+                <span id="resType" class="text-xs font-bold px-2 py-1 rounded-md bg-blue-100 text-blue-700">分类</span>
             </div>
         </div>
         <div class="p-4 bg-slate-50 rounded-2xl">
-            <p class="text-[10px] text-slate-400 font-bold mb-1 uppercase">处理建议</p>
             <p id="resAdvice" class="text-slate-600 text-sm leading-relaxed"></p>
         </div>
     </div>
 
-    <p class="mt-8 text-[10px] text-slate-300">Powered by Gemini 1.5 Flash • 2026版</p>
-
     <script type="module">
-        // ⚠️ 在此填入你的 KEY，确保引号内没有多余空格
-        const API_KEY = "AIzaSyBXrqud_xUJgVeINQSsxhrTq8QAfsx6n0U";
+        // --- 豆包配置区 ---
+        const API_KEY = "2afd5919-81b8-4987-b377-63bcbac0133e"; 
+        const ENDPOINT_ID = "ep-20260207164138-jv7bx"; 
 
         const video = document.getElementById('video');
         const mainBtn = document.getElementById('mainBtn');
-        const debug = document.getElementById('debugStatus');
         const scanLine = document.getElementById('scanLine');
         const resultCard = document.getElementById('resultCard');
 
         let isCameraOpen = false;
 
-        // 1. 开启相机/拍照 逻辑切换
+        // 1. 开启相机
         mainBtn.onclick = async () => {
             if (!isCameraOpen) {
                 try {
-                    debug.innerText = "正在唤醒相机...";
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: { facingMode: { ideal: "environment" } } 
                     });
                     video.srcObject = stream;
                     await video.play();
-                    
                     isCameraOpen = true;
-                    mainBtn.innerText = "拍照识别垃圾";
-                    mainBtn.className = "w-full bg-blue-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all";
-                    debug.innerText = "相机已开启";
-                } catch (err) {
-                    debug.innerText = "错误: " + err.name;
-                    alert("无法启动相机，请在设置中允许浏览器访问权限。");
-                }
+                    mainBtn.innerText = "拍摄识别垃圾";
+                    mainBtn.className = "w-full bg-green-600 text-white text-lg font-bold py-4 rounded-2xl shadow-lg";
+                } catch (err) { alert("相机启动失败，请检查浏览器权限"); }
             } else {
                 handleCapture();
             }
         };
 
-        // 2. 图像识别逻辑
+        // 2. 调用豆包多模态接口
         async function handleCapture() {
             const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            
-            // 转换为 Base64，质量压缩至 0.7 提高传输速度
-            const base64Image = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 
-            // UI 状态反馈
             scanLine.style.display = 'block';
             mainBtn.disabled = true;
-            mainBtn.innerText = "AI 正在分析中...";
+            mainBtn.innerText = "豆包分析中...";
             resultCard.classList.add('hidden');
 
-            // 修复 404 的关键点：使用 v1beta 下的最新模型路径
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-            
             try {
-                const response = await fetch(url, {
+                // 注意：火山引擎 Ark 平台的标准地址
+                const response = await fetch("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { text: "你是一个垃圾分类专家。请识别图中物体，判断其在中国标准下的分类（可回收物/有害垃圾/厨余垃圾/其他垃圾）。严格返回 JSON 格式: {\"name\":\"名称\",\"type\":\"分类\",\"advice\":\"处理建议\",\"emoji\":\"图标\"}" },
-                                { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-                            ]
-                        }]
+                        model: ENDPOINT_ID,
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: "识别图中物体并进行垃圾分类。严格返回JSON格式，不要包含Markdown代码块标签：{\"name\":\"物体名\",\"type\":\"分类\",\"advice\":\"处理建议\",\"emoji\":\"图标\"}" },
+                                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+                                ]
+                            }
+                        ]
                     })
                 });
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error.message || "请求失败");
-                }
-
                 const data = await response.json();
-                let resultText = data.candidates[0].content.parts[0].text;
                 
-                // 清理大模型可能带出的 Markdown 标签
-                const cleanJson = resultText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+                if (data.error) throw new Error(data.error.message);
+
+                let content = data.choices[0].message.content;
+                // 清理可能的 Markdown 格式
+                const cleanJson = content.replace(/```json/gi, '').replace(/```/gi, '').trim();
                 const res = JSON.parse(cleanJson);
 
-                // 更新结果 UI
                 document.getElementById('resName').innerText = res.name;
                 document.getElementById('resType').innerText = res.type;
                 document.getElementById('resAdvice').innerText = res.advice;
                 document.getElementById('resEmoji').innerText = res.emoji || "♻️";
-                
                 resultCard.classList.remove('hidden');
-                resultCard.scrollIntoView({ behavior: 'smooth' });
-
+                
             } catch (e) {
                 console.error(e);
-                alert("识别失败: " + e.message + "\n请检查 Key 是否正确或尝试换个网络。");
+                alert("识别失败：" + e.message);
             } finally {
                 scanLine.style.display = 'none';
                 mainBtn.disabled = false;
-                mainBtn.innerText = "再次识别";
+                mainBtn.innerText = "再次拍摄";
             }
         }
     </script>
